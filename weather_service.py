@@ -1,0 +1,113 @@
+# weather_service.py
+import pandas as pd
+import numpy as np
+from scipy.interpolate import griddata
+import requests
+from datetime import datetime, timedelta, timezone
+import time
+import logging
+
+from config import *
+
+# 메모리 캐시 상태 관리
+TARGET_POINTS = []
+CACHED_WIND_DATA = []
+
+def init_target_points():
+    """CSV 공간 다운샘플링 초기화"""
+    global TARGET_POINTS
+    try:
+        df = pd.read_csv(CSV_FILE_PATH, encoding='utf-8')
+        df['grid_x_bin'] = df['격자 X'] // 10
+        df['grid_y_bin'] = df['격자 Y'] // 10
+        sampled_df = df.drop_duplicates(subset=['grid_x_bin', 'grid_y_bin'])
+        
+        for _, row in sampled_df.iterrows():
+            if pd.notna(row['격자 X']) and pd.notna(row['격자 Y']):
+                TARGET_POINTS.append({
+                    'nx': int(row['격자 X']), 'ny': int(row['격자 Y']),
+                    'lon': float(row['경도(초/100)']), 'lat': float(row['위도(초/100)'])
+                })
+        logging.info(f"초기화 완료: 대상 지점 {len(TARGET_POINTS)}개 확보")
+    except Exception as e:
+        logging.error(f"CSV 로드 실패: {e}")
+
+def fetch_weather_data():
+    """기상청 실황 데이터 수집"""
+    KST = timezone(timedelta(hours=9))
+    now = datetime.now(KST)
+    if now.minute < 15: now -= timedelta(hours=1)
+    base_date, base_time = now.strftime('%Y%m%d'), now.strftime('%H00')
+    
+    obs_lons, obs_lats, obs_u, obs_v = [], [], [], []
+    
+    for pt in TARGET_POINTS:
+        params = {
+            'serviceKey': SERVICE_KEY, 'numOfRows': '10', 'pageNo': '1', 'dataType': 'JSON',
+            'base_date': base_date, 'base_time': base_time, 'nx': pt['nx'], 'ny': pt['ny']
+        }
+        try:
+            res = requests.get(API_URL, params=params, timeout=3)
+            data = res.json()
+            if data['response']['header']['resultCode'] == '00':
+                u, v = 0.0, 0.0
+                for item in data['response']['body']['items']['item']:
+                    if item['category'] == 'UUU': u = float(item['obsrValue'])
+                    elif item['category'] == 'VVV': v = float(item['obsrValue'])
+                
+                if abs(u) < 900 and abs(v) < 900:
+                    obs_lons.append(pt['lon'])
+                    obs_lats.append(pt['lat'])
+                    obs_u.append(u)
+                    obs_v.append(v)
+        except Exception:
+            pass
+        time.sleep(0.01)
+        
+    return obs_lons, obs_lats, obs_u, obs_v
+
+def interpolate_wind_vectors(obs_lons, obs_lats, obs_u, obs_v):
+    """Cubic 및 Nearest 이중 공간 보간"""
+    points_array = np.array(list(zip(obs_lons, obs_lats)))
+    u_array, v_array = np.array(obs_u), np.array(obs_v)
+    
+    grid_lons = np.arange(LON_START, LON_END + GRID_RES, GRID_RES)
+    grid_lats = np.arange(LAT_START, LAT_END - GRID_RES, -GRID_RES)
+    grid_lon_mesh, grid_lat_mesh = np.meshgrid(grid_lons, grid_lats)
+    
+    def apply_dual_interpolation(values):
+        val_cubic = griddata(points_array, values, (grid_lon_mesh, grid_lat_mesh), method='cubic')
+        val_near = griddata(points_array, values, (grid_lon_mesh, grid_lat_mesh), method='nearest')
+        return np.where(np.isnan(val_cubic), val_near, val_cubic)
+
+    grid_u = apply_dual_interpolation(u_array)
+    grid_v = apply_dual_interpolation(v_array)
+    
+    return np.round(grid_u.flatten(), 2).tolist(), np.round(grid_v.flatten(), 2).tolist(), len(grid_lons), len(grid_lats)
+
+def format_velocity_json(u_flat, v_flat, nx_points, ny_points):
+    """JSON 배열 조립"""
+    header_base = {
+        "parameterCategory": 2, "dx": GRID_RES, "dy": GRID_RES,
+        "la1": LAT_START, "la2": LAT_END, "lo1": LON_START, "lo2": LON_END,
+        "nx": nx_points, "ny": ny_points
+    }
+    
+    return [
+        {"header": {**header_base, "parameterNumber": 2}, "data": u_flat},
+        {"header": {**header_base, "parameterNumber": 3}, "data": v_flat}
+    ]
+
+def update_wind_cache_job():
+    """스케줄러에 등록할 전체 파이프라인 함수"""
+    global CACHED_WIND_DATA
+    lons, lats, u, v = fetch_weather_data()
+    if len(u) < 3: return
+        
+    u_flat, v_flat, nx_p, ny_p = interpolate_wind_vectors(lons, lats, u, v)
+    CACHED_WIND_DATA = format_velocity_json(u_flat, v_flat, nx_p, ny_p)
+    logging.info("바람장 데이터 캐시 갱신 완료")
+
+def get_wind_data():
+    """라우터에서 호출할 데이터 반환 함수"""
+    return CACHED_WIND_DATA

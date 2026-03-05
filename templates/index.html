@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>B2B 통합 재난 대응 대시보드</title>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-velocity/dist/leaflet-velocity.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/leaflet-velocity/dist/leaflet-velocity.min.js"></script>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+    <div id="sidebar">
+        <h2 style="font-size: 18px; text-align: center; color: #fff;">재난/기상 통합 관제</h2>
+        
+        <div class="panel" id="timeline-panel">
+            <h3>실시간 재난/공지 타임라인</h3>
+            <div id="timeline-content">데이터 로딩 중...</div>
+        </div>
+
+        <div class="panel" id="sop-panel">
+            <h3>대응 매뉴얼 (SOP)</h3>
+            <div id="sop-content">상황 대기 중...</div>
+        </div>
+    </div>
+
+    <div id="map-container">
+        <div id="loading">바람장 데이터를 처리 중입니다...<br>(최대 1~2초 소요)</div>
+        
+        <div id="sim-controls">
+            <h3 style="margin-bottom: 10px; font-size:13px; text-align: center;">시뮬레이션 모드</h3>
+            <button id="btn-toggle-sim">가상 사고 위치 지정 (Off)</button>
+        </div>
+        
+        <div id="map"></div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/config.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/ui.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/map.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/simulation.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script></body>
+</html>

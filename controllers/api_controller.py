@@ -1,6 +1,9 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, Response
 from models.weather_model import get_wind_data
 from models.facility_model import get_factories, get_plants, get_shelters
+
+import models.weather_model as wm
+import time
 
 # 'api'라는 이름의 Blueprint 객체 생성 (라우터 그룹화)
 api_bp = Blueprint('api', __name__, url_prefix='/api')
@@ -38,3 +41,22 @@ def api_get_sop_manual():
     return jsonify({"status": status, "checklist": [
         {"id": 1, "task": "현장 인력 대피 지시", "done": False}
     ]})
+
+@api_bp.route('/stream')
+def sse_stream():
+    """SSE (Server-Sent Events) 스트리밍 엔드포인트"""
+    def event_generator():
+        last_sent_time = wm.WIND_LAST_UPDATED
+        
+        while True:
+            # 1. 연결 유지를 위한 Ping 전송 (Heroku, Azure 등에서 Timeout 방지)
+            yield "event: ping\ndata: keep-alive\n\n"
+            
+            # 2. 바람장 데이터가 새로 갱신되었는지 확인
+            if wm.WIND_LAST_UPDATED > last_sent_time:
+                last_sent_time = wm.WIND_LAST_UPDATED
+                yield "event: wind_update\ndata: updated\n\n"
+            
+            time.sleep(5)  # 5초 주기로 상태 확인
+            
+    return Response(event_generator(), mimetype="text/event-stream")

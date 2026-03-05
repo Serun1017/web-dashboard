@@ -100,12 +100,14 @@ def format_velocity_json(u_flat, v_flat, nx_points, ny_points):
 
 def update_wind_cache_job():
     """스케줄러에 등록할 전체 파이프라인 함수"""
-    global CACHED_WIND_DATA
+    global CACHED_WIND_DATA, WIND_LAST_UPDATED # WIND_LAST_UPDATED 추가
     lons, lats, u, v = fetch_weather_data()
     if len(u) < 3: return
         
     u_flat, v_flat, nx_p, ny_p = interpolate_wind_vectors(lons, lats, u, v)
     CACHED_WIND_DATA = format_velocity_json(u_flat, v_flat, nx_p, ny_p)
+    
+    WIND_LAST_UPDATED = time.time()  # 추가: 갱신 시간 업데이트
     logging.info("바람장 데이터 캐시 갱신 완료")
 
 def get_wind_data():

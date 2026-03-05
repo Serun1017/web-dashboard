@@ -17,7 +17,9 @@ body {
     gap: 20px;
     overflow-y: auto;
     border-right: 1px solid #333;
-    z-index: 1000;
+    z-index: 2000; /* 맵(z-index:1)보다 확실히 위에 띄움 */
+    position: relative; /* 토글 버튼 배치를 위한 기준점 */
+    transition: margin-left 0.3s ease; /* Flex 구조에서 지도 영역 자동 확장을 유도 */
 }
 .panel {
     background: #2a2a2a;
@@ -30,6 +32,31 @@ body {
     color: #4facfe;
     border-bottom: 1px solid #444;
     padding-bottom: 8px;
+}
+
+/* 닫힘 상태 클래스 */
+#sidebar.collapsed {
+    margin-left: -350px;
+}
+
+/* 토글 버튼 스타일 */
+#sidebar-toggle {
+    position: absolute;
+    right: -30px; /* 사이드바 바깥(지도 쪽)으로 튀어나오게 배치 */
+    top: 50%;
+    transform: translateY(-50%);
+    width: 30px;
+    height: 60px;
+    background: #1e1e1e;
+    color: white;
+    border: 1px solid #333;
+    border-left: none;
+    border-radius: 0 5px 5px 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2001; /* 사이드바보다 위 */
 }
 
 /* 타임라인과 SOP 스타일 */
@@ -112,3 +139,44 @@ body {
     margin-top: 110px; /* 시뮬레이션 창의 높이만큼 공간을 비워 아래로 밀어냄 */
     margin-right: 10px;
 }
+
+/* --- 발전소 상세 정보 카드 스타일 --- */
+.empty-state {
+    color: #888;
+    text-align: center;
+    padding: 20px 0;
+    font-size: 13px;
+    font-style: italic;
+}
+
+.plant-data-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* 2열 배치 */
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.data-box {
+    background: #1e1e1e;
+    padding: 12px 10px;
+    border-radius: 6px;
+    text-align: center;
+    border: 1px solid #333;
+}
+
+.data-box .label {
+    font-size: 11px;
+    color: #aaa;
+    margin-bottom: 6px;
+}
+
+.data-box .value {
+    font-size: 16px;
+    font-weight: bold;
+}
+
+/* 방사선량 상태별 색상 */
+.val-normal { color: #4CAF50; }   /* 정상 - 초록 */
+.val-warning { color: #FFEB3B; }  /* 주의 - 노랑 */
+.val-alert { color: #FF9800; }    /* 경고 - 주황 */
+.val-emergency { color: #F44336; }/* 비상 - 빨강 */

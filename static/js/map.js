@@ -23,7 +23,7 @@ const MapManager = {
         this.layerGroups = {
             plants: L.layerGroup().addTo(this.map),    
             factories: L.layerGroup().addTo(this.map), 
-            shelters: L.layerGroup().addTo(this.map) 
+            shelters: L.layerGroup()
         };
 
         L.control.layers(null, {
@@ -47,10 +47,15 @@ const MapManager = {
 
             plants.forEach(p => {
                 if (!p.lat || !p.lon) return;
-                L.circleMarker([p.lat, p.lon], {
+                const marker = L.circleMarker([p.lat, p.lon], {
                     radius: 12, fillColor: "#ff0000", color: "#ffffff", weight: 2, fillOpacity: 0.8
                 }).addTo(this.layerGroups.plants)
-                  .bindPopup(`<b>[발전소] ${p.name}</b><br>${p.address}`);
+                .bindPopup(`<b>[발전소] ${p.name}</b>`); // 팝업 내용 간소화
+
+                // 추가: 마커 클릭 시 사이드바에 상세 정보 렌더링 지시
+                marker.on('click', () => {
+                    UIManager.showPlantDetails(p);
+                });
             });
 
             factories.forEach(f => {

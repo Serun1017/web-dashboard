@@ -15,16 +15,33 @@
 <body>
 
     <div id="sidebar">
+        <button id="sidebar-toggle">◀</button>
+        
         <h2 style="font-size: 18px; text-align: center; color: #fff;">재난/기상 통합 관제</h2>
         
+        <div class="panel" id="plant-info-panel" style="border-left: 4px solid #4facfe; transition: border-color 0.3s;">
+            <h3>원전 상태 상세</h3>
+            <div id="plant-details">
+                <div class="empty-state">
+                    지도에서 원전을 선택해주세요.
+                </div>
+            </div>
+        </div>
+
         <div class="panel" id="timeline-panel">
             <h3>실시간 재난/공지 타임라인</h3>
             <div id="timeline-content">데이터 로딩 중...</div>
         </div>
 
-        <div class="panel" id="sop-panel">
-            <h3>대응 매뉴얼 (SOP)</h3>
-            <div id="sop-content">상황 대기 중...</div>
+        <div class="panel" id="chat-panel">
+            <h3>대응 매뉴얼 AI 챗봇</h3>
+            <div id="chat-messages" style="height: 150px; overflow-y: auto; background: #222; padding: 10px; margin-bottom: 5px; font-size: 13px;">
+                <div style="color: #aaa;">[AI] 궁금한 매뉴얼이나 조치사항을 물어보세요.</div>
+            </div>
+            <div style="display: flex;">
+                <input type="text" id="chat-input" style="flex: 1; padding: 5px; background: #333; color: white; border: 1px solid #555;" placeholder="질문 입력...">
+                <button id="chat-send" style="padding: 5px 10px; background: #4facfe; color: white; border: none; cursor: pointer;">전송</button>
+            </div>
         </div>
     </div>
 

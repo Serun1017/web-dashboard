@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request, Response
 from models.weather_model import get_wind_data
-from models.facility_model import get_factories, get_plants, get_shelters
+from models.facility_model import get_factories, get_plants, get_shelters, get_plant_details
 
 import models.weather_model as wm
 import time
@@ -26,6 +26,13 @@ def api_get_plants():
 @api_bp.route('/facilities/shelters')
 def api_get_shelters():
     return jsonify(get_shelters())
+
+@api_bp.route('/facilities/plants/<plant_id>')
+def api_get_plant_details(plant_id):
+    data = get_plant_details(plant_id)
+    if not data:
+        return jsonify({"error": "원전 상세 데이터를 찾을 수 없습니다."}), 404
+    return jsonify(data)
 
 @api_bp.route('/disaster/alerts')
 def api_get_disaster_alerts():
@@ -60,3 +67,4 @@ def sse_stream():
             time.sleep(5)  # 5초 주기로 상태 확인
             
     return Response(event_generator(), mimetype="text/event-stream")
+

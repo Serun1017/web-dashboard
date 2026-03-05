@@ -61,3 +61,65 @@ def get_shelters():
         FROM emergency_shelter_info;
     """
     return fetch_data_from_db(query)
+
+def get_plant_details(plant_id):
+    """특정 원전의 최신 기상 정보와 방사선량 상태를 조회"""
+    conn = get_db_connection()
+    if not conn:
+        return None
+        
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # 1. 최신 기상 정보 조회
+            cur.execute("""
+                SELECT temp, rain_fall as rain, humidity 
+                FROM khnp_weather_info 
+                WHERE plant_code = %s 
+                ORDER BY collected_at DESC 
+                LIMIT 1
+            """, (plant_id,))
+            weather = cur.fetchone() or {'temp': '-', 'rain': '-', 'humidity': '-'}
+            
+            # 2. 최신 방사선량 및 안전 등급 조회 (센서 테이블 조인)
+            cur.execute("""
+                SELECT r.radiorate 
+                FROM khnp_radiorate_info r
+                JOIN khnp_sensor_info s ON r.sensor_code = s.sensor_code
+                WHERE s.plant_code = %s 
+                ORDER BY r.collected_at DESC 
+                LIMIT 1
+            """, (plant_id,))
+            radio = cur.fetchone()
+            
+            rad_level = "정상" # 기본값
+            rad_val_out = "-" # 수치 기본값
+            
+            if radio and radio['radiorate'] is not None:
+                rad_val = float(radio['radiorate'])
+                rad_val_out = round(rad_val, 4) # 소수점 4자리까지 표시                
+                
+                # 방사선 수치 기반 등급 산출
+                cur.execute("""
+                    SELECT grade 
+                    FROM safety_grade 
+                    WHERE min_threshold <= %s 
+                    ORDER BY min_threshold DESC 
+                    LIMIT 1
+                """, (rad_val,))
+                grade_row = cur.fetchone()
+                if grade_row:
+                    rad_level = grade_row['grade']
+            
+            # Decimal 직렬화 에러를 방지하기 위한 형변환 포함 반환
+            return {
+                "radLevel": rad_level,
+                "radValue": rad_val_out,  # <-- 추가: 실제 방사선 수치
+                "temp": float(weather['temp']) if weather.get('temp') != '-' else '-',
+                "rain": float(weather['rain']) if weather.get('rain') != '-' else '-',
+                "humidity": float(weather['humidity']) if weather.get('humidity') != '-' else '-'
+            }
+    except Exception as e:
+        logging.error(f"원전 상세 조회 에러 (plant_id: {plant_id}): {e}")
+        return None
+    finally:
+        conn.close()

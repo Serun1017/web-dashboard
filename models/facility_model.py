@@ -56,7 +56,7 @@ def get_plants():
 def get_shelters():
     # 제공된 다이어그램의 한글/영문 컬럼명을 알맞게 매핑
     query = """
-        SELECT id, 대피소명 as name, 주소 as address, 
+        SELECT id, 대피소명 as name, 도로명주소 as address, 
                위도 as lat, 경도 as lon, 수용가능인원 as capacity 
         FROM emergency_shelter_info;
     """

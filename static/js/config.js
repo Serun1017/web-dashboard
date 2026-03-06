@@ -4,7 +4,6 @@ const CONFIG = {
     endpoints: {
         wind: '/api/weather/wind',
         alerts: '/api/disaster/alerts',
-        sop: '/api/disaster/sop',
         factories: '/api/facilities/factories',
         plants: '/api/facilities/plants',
         shelters: '/api/facilities/shelters'

@@ -2,20 +2,40 @@
 
 const SSEManager = {
     init() {
-        // SSE 엔드포인트 연결
         const evtSource = new EventSource('/api/stream');
-
-        // 서버에서 'wind_update' 이벤트를 보내면 실행
+        
+        // 평시 기능: 바람장 업데이트
         evtSource.addEventListener('wind_update', (e) => {
-            console.log("[SSE] 백엔드 바람 데이터 갱신 감지. 애니메이션을 재렌더링합니다.");
             MapManager.renderWindLayer();
         });
-
-        // 서버와의 연결 유지 핑 수신
-        evtSource.addEventListener('ping', (e) => {
-            console.log("[SSE] Keep-alive ping 수신");
+        
+        // 비상 발령 신호 수신
+        evtSource.addEventListener('emergency_alert', (e) => {
+            const data = JSON.parse(e.data);
+            console.log("[SSE] 비상 발령 감지:", data.plant_name);
+            UIManager.triggerEmergencyMode(data.plant_name);
         });
 
+        // 비상 발령 해제 신호 수신
+        evtSource.addEventListener('emergency_clear', (e) => {
+            console.log("[SSE] 비상 발령 해제 감지");
+            UIManager.clearEmergencyMode();
+        });
+
+        // 실시간 재난 문자 수신
+        evtSource.addEventListener('disaster_msg', (e) => {
+            const newMsgs = JSON.parse(e.data);
+            UIManager.appendDisasterMessages(newMsgs);
+        });
+
+        // RAG 실시간 메시지 수신
+        evtSource.addEventListener('rag_message', (e) => {
+            const data = JSON.parse(e.data);
+            console.log("[SSE] RAG 메시지 수신:", data.text);
+            UIManager.appendRagMessage(data.text);
+        });
+
+        evtSource.addEventListener('ping', (e) => {});
         evtSource.onerror = (err) => {
             console.error("[SSE] 서버 연결 오류 발생, 재연결을 시도합니다.", err);
         };
@@ -24,7 +44,6 @@ const SSEManager = {
 
 window.onload = () => {
     UIManager.loadTimeline();
-    UIManager.loadSOP();
 
     MapManager.init();
     MapManager.renderWindLayer();
@@ -32,6 +51,5 @@ window.onload = () => {
 
     SimulationManager.init();
     
-    // 추가: SSE 매니저 초기화
     SSEManager.init();
 };

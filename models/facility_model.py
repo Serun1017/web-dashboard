@@ -4,6 +4,12 @@ from psycopg2.extras import RealDictCursor
 import logging
 from config import DB_CONFIG
 
+DISASTER_STATE = {
+    "last_id": 0,
+    "new_msgs": [],
+    "update_time": 0
+}
+
 def get_db_connection():
     """PostgreSQL 데이터베이스 연결 객체 반환"""
     try:
@@ -121,5 +127,68 @@ def get_plant_details(plant_id):
     except Exception as e:
         logging.error(f"원전 상세 조회 에러 (plant_id: {plant_id}): {e}")
         return None
+    finally:
+        conn.close()
+        
+def get_initial_disaster_msgs(limit=20):
+    """최초 접속 시 표시할 재난 문자 목록 (최신순)"""
+    global DISASTER_STATE
+    conn = get_db_connection()
+    if not conn: return []
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # 수정된 쿼리: 실제 컬럼명(sn, 메세지, updated_at)을 사용하고 별칭 부여
+            cur.execute("""
+                SELECT sn AS id, 메세지 AS msg, updated_at AS created_at 
+                FROM gov_disaster_msg 
+                ORDER BY sn DESC 
+                LIMIT %s
+            """, (limit,))
+            records = cur.fetchall()
+            
+            # 시간 데이터를 문자열로 변환
+            for r in records:
+                if 'created_at' in r and r['created_at']:
+                    r['created_at'] = r['created_at'].strftime('%Y-%m-%d %H:%M:%S')
+
+            if records:
+                DISASTER_STATE["last_id"] = records[0]['id'] # 가장 최신 sn 값 저장
+            return records
+    except Exception as e:
+        logging.error(f"초기 재난 문자 로드 에러: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def poll_new_disaster_msgs():
+    """스케줄러에 등록할 폴링 함수: 새로운 재난 문자 감지"""
+    global DISASTER_STATE
+    if DISASTER_STATE["last_id"] == 0:
+        return # 초기 로딩 전이면 스킵
+
+    conn = get_db_connection()
+    if not conn: return
+    try:
+        import time
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT sn AS id, 메세지 AS msg, updated_at AS created_at 
+                FROM gov_disaster_msg 
+                WHERE sn > %s 
+                ORDER BY sn ASC
+            """, (DISASTER_STATE["last_id"],))
+            new_records = cur.fetchall()
+            
+            if new_records:
+                for r in new_records:
+                    if 'created_at' in r and r['created_at']:
+                        r['created_at'] = r['created_at'].strftime('%Y-%m-%d %H:%M:%S')
+                        
+                DISASTER_STATE["last_id"] = new_records[-1]['id']
+                DISASTER_STATE["new_msgs"] = new_records
+                DISASTER_STATE["update_time"] = time.time() # SSE 갱신 트리거 작동
+    except Exception as e:
+        logging.error(f"재난 문자 폴링 에러: {e}")
     finally:
         conn.close()

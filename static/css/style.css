@@ -72,14 +72,6 @@ body {
     display: block;
     margin-bottom: 2px;
 }
-.sop-item {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px; font-size: 13px;
-    margin-bottom: 10px;
-    color: #ddd;
-}
-.sop-item input[type="checkbox"] { margin-top: 3px; cursor: pointer; }
 
 /* 지도 컨테이너 스타일 */
 #map-container {

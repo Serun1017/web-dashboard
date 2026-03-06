@@ -57,44 +57,63 @@ def api_get_disaster_messages():
 def sse_stream():
     """SSE 스트리밍 엔드포인트"""
     def event_generator():
+        # 1. 0이 아닌 연결 순간의 서버 전역 상태 타임스탬프로 기준점 설정 (과거 이벤트 재실행 방지)
         last_sent_time = wm.WIND_LAST_UPDATED
-        last_emergency_time = 0
-        last_clear_time = 0
-        last_msg_time = 0
-        last_disaster_time = 0
+        last_emergency_time = EMERGENCY_STATE["trigger_time"]
+        last_clear_time = EMERGENCY_STATE["clear_time"]
+        last_msg_time = EMERGENCY_STATE["msg_time"]
+        last_disaster_time = DISASTER_STATE["update_time"]
 
+        # 2. 새로고침(재접속) 시점에 서버가 이미 비상 모드인 경우의 복구 로직
+        if EMERGENCY_STATE["is_emergency"]:
+            # 경과된 시간을 빼서 남은 타이머 시간(remaining_eta) 계산
+            elapsed_time = time.time() - EMERGENCY_STATE["trigger_time"]
+            remaining_eta = max(0, int(EMERGENCY_STATE["eta"] - elapsed_time))
+            
+            # 남은 시간을 담아 현재 상태를 프론트엔드로 동기화
+            alert_data = json.dumps({
+                "plant_code": EMERGENCY_STATE["plant_code"],
+                "plant_name": EMERGENCY_STATE["plant_name"],
+                "lat": EMERGENCY_STATE["lat"],
+                "lon": EMERGENCY_STATE["lon"],
+                "eta": remaining_eta
+            })
+            yield f"event: emergency_alert\ndata: {alert_data}\n\n"
+            
+            # 최신 RAG 브리핑 메시지도 화면에 복구
+            if EMERGENCY_STATE["latest_message"]:
+                msg_data = json.dumps({"text": EMERGENCY_STATE["latest_message"]})
+                yield f"event: rag_message\ndata: {msg_data}\n\n"
+
+        # 3. 이후부터 발생하는 새로운 이벤트만 감지
         while True:
             yield "event: ping\ndata: keep-alive\n\n"
             
-            # (바람장 갱신 감지)
             if wm.WIND_LAST_UPDATED > last_sent_time:
                 last_sent_time = wm.WIND_LAST_UPDATED
                 yield "event: wind_update\ndata: updated\n\n"
             
-            # (비상 모드 발동 감지 - ETA 데이터 포함)
+            # 신규 비상 발령 시 원본 ETA 전송
             if EMERGENCY_STATE["trigger_time"] > last_emergency_time:
                 last_emergency_time = EMERGENCY_STATE["trigger_time"]
                 alert_data = json.dumps({
                     "plant_code": EMERGENCY_STATE["plant_code"],
                     "plant_name": EMERGENCY_STATE["plant_name"],
-                    "lat": EMERGENCY_STATE["lat"],  # 좌표 추가
-                    "lon": EMERGENCY_STATE["lon"],  # 좌표 추가
+                    "lat": EMERGENCY_STATE["lat"],
+                    "lon": EMERGENCY_STATE["lon"],
                     "eta": EMERGENCY_STATE["eta"]
                 })
                 yield f"event: emergency_alert\ndata: {alert_data}\n\n"
                 
-            # (비상 모드 해제 감지)
             if EMERGENCY_STATE["clear_time"] > last_clear_time:
                 last_clear_time = EMERGENCY_STATE["clear_time"]
                 yield "event: emergency_clear\ndata: cleared\n\n"
                 
-            # (RAG 실시간 메시지 감지)
             if EMERGENCY_STATE["msg_time"] > last_msg_time:
                 last_msg_time = EMERGENCY_STATE["msg_time"]
                 msg_data = json.dumps({"text": EMERGENCY_STATE["latest_message"]})
                 yield f"event: rag_message\ndata: {msg_data}\n\n"
             
-            # (재난 문자 갱신 감지)
             if DISASTER_STATE["update_time"] > last_disaster_time:
                 last_disaster_time = DISASTER_STATE["update_time"]
                 data = json.dumps(DISASTER_STATE["new_msgs"])

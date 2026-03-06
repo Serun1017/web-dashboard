@@ -134,5 +134,18 @@ const MapManager = {
             this.map.removeLayer(this.dangerCircle);
             this.dangerCircle = null;
         }
+    },
+
+    // --- [신규 추가] 대피소 레이어 제어 함수 ---
+    showShelters() {
+        if (this.map && this.layerGroups.shelters) {
+            this.map.addLayer(this.layerGroups.shelters);
+        }
+    },
+
+    hideShelters() {
+        if (this.map && this.layerGroups.shelters) {
+            this.map.removeLayer(this.layerGroups.shelters);
+        }
     }
 };

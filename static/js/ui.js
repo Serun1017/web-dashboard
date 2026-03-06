@@ -51,6 +51,33 @@ const UIManager = {
                 toggleBtn.innerText = sidebar.classList.contains('collapsed') ? '▶' : '◀';
             });
         }
+
+        // --- [신규 추가] 수동 비상 해제 버튼 이벤트 리스너 ---
+        const clearEmergencyBtn = document.getElementById('btn-clear-emergency');
+        if (clearEmergencyBtn) {
+            clearEmergencyBtn.addEventListener('click', async () => {
+                // 사용자 오작동 방지를 위한 확인창
+                if (confirm("정말로 비상 상황을 수동으로 해제하시겠습니까?\n모든 시스템이 평시 모드로 복구됩니다.")) {
+                    try {
+                        // 백엔드의 기존 해제 웹훅으로 POST 요청 전송
+                        const res = await fetch('/api/webhook/emergency/clear', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ source: 'dashboard_ui' })
+                        });
+                        
+                        if (!res.ok) throw new Error("서버 응답 오류");
+                        console.log("비상 상황 수동 해제 요청 전송 완료");
+                        // 참고: UI 초기화 로직은 여기서 직접 실행하지 않습니다.
+                        // 서버가 SSE로 'emergency_clear' 이벤트를 브로드캐스트하면
+                        // main.js의 리스너가 이를 감지하여 UIManager.clearEmergencyMode()를 자동 실행합니다.
+                    } catch (e) {
+                        console.error("비상 해제 요청 실패:", e);
+                        alert("비상 상황 해제 요청에 실패했습니다. 서버 상태를 확인하세요.");
+                    }
+                }
+            });
+        }
     },
 
     async showPlantDetails(plant) {
@@ -109,7 +136,7 @@ const UIManager = {
     },
 
     // 파라미터에 plantCode 추가
-    triggerEmergencyMode(plantCode, plantName, eta) {
+    triggerEmergencyMode(plantCode, plantName, eta, lat, lon) {
         const indicator = document.getElementById('status-indicator');
         if (indicator) {
             indicator.innerHTML = '🚨 비상 모드 (Emergency)';
@@ -139,6 +166,11 @@ const UIManager = {
         // --- 지도에 30km 위험 반경 렌더링 호출 ---
         if (lat && lon && typeof MapManager.drawDangerZone === 'function') {
             MapManager.drawDangerZone(lat, lon, 30000); // 30,000m = 30km
+        }
+
+        // --- [신규 추가] 비상 대피소 레이어 자동 활성화 ---
+        if (typeof MapManager.showShelters === 'function') {
+            MapManager.showShelters();
         }
 
         if (eta > 0) {
@@ -243,6 +275,11 @@ const UIManager = {
         // --- 위험 반경 레이어 제거 ---
         if (typeof MapManager.clearDangerZone === 'function') {
             MapManager.clearDangerZone();
+        }
+
+        // --- [신규 추가] 평시 복귀 시 대피소 레이어 숨김 ---
+        if (typeof MapManager.hideShelters === 'function') {
+            MapManager.hideShelters();
         }
     }
 };

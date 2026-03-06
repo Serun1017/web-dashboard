@@ -46,6 +46,8 @@ const SSEManager = {
 window.onload = () => {
     UIManager.loadTimeline();
 
+    UIManager.initSidebarFeatures();
+
     MapManager.init();
     MapManager.renderWindLayer();
     MapManager.loadFacilityData(); 

@@ -156,7 +156,7 @@ def get_initial_disaster_msgs(limit=20):
         return []
     finally:
         conn.close()
-
+        
 def poll_new_disaster_msgs():
     """스케줄러에 등록할 폴링 함수: 새로운 재난 문자 감지"""
     global DISASTER_STATE
@@ -165,13 +165,16 @@ def poll_new_disaster_msgs():
     try:
         import time
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            # 2. 기준점이 -1일 때만 최초 1회 실행
+            # 1. 초기 기준점 설정 단계
             if DISASTER_STATE["last_id"] == -1:
                 cur.execute("SELECT COALESCE(MAX(id), 0) as max_id FROM gov_disaster_msg")
                 result = cur.fetchone()
-                # 0을 False로 인식하지 않도록 명시적 할당
                 DISASTER_STATE["last_id"] = result['max_id'] if result else 0
+                logging.info(f"[스케줄러] 최초 기준점 설정 완료: last_id = {DISASTER_STATE['last_id']}")
                 return 
+            
+            # 2. 폴링 시도 단계 (현재 기준점 확인)
+            logging.info(f"[스케줄러] 폴링 실행 (현재 last_id: {DISASTER_STATE['last_id']} 이후 데이터 조회)")
             
             # 3. 새 데이터 조회
             cur.execute("""
@@ -191,7 +194,14 @@ def poll_new_disaster_msgs():
                 DISASTER_STATE["new_msgs"] = new_records
                 DISASTER_STATE["update_time"] = time.time() # SSE 갱신 트리거 작동
                 
+                # 4-A. 새 데이터 감지 성공 로그 (수신된 id 목록 포함)
+                fetched_ids = [r['id'] for r in new_records]
+                logging.info(f"[스케줄러] 🟢 새 데이터 {len(new_records)}건 감지! (수신 id: {fetched_ids}) -> last_id를 {DISASTER_STATE['last_id']}로 갱신")
+            else:
+                # 4-B. 새 데이터 없음 로그
+                logging.info(f"[스케줄러] ⚪ 새 데이터 없음 (last_id: {DISASTER_STATE['last_id']} 유지)")
+                
     except Exception as e:
-        logging.error(f"재난 문자 폴링 에러: {e}")
+        logging.error(f"[스케줄러] 🔴 재난 문자 폴링 에러: {e}")
     finally:
         conn.close()

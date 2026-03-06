@@ -1,6 +1,9 @@
 // static/js/ui.js
 
 const UIManager = {
+    // 추가: 내부 타이머 관리를 위한 변수
+    etaInterval: null,
+
     showLoading: () => document.getElementById('loading').style.display = 'block',
     hideLoading: () => document.getElementById('loading').style.display = 'none',
     
@@ -30,12 +33,10 @@ const UIManager = {
         }
     },
 
-    // --- 백엔드에서 전송된 새 재난 문자를 타임라인 최상단에 삽입 ---
     appendDisasterMessages(newMsgs) {
         const container = document.getElementById('timeline-content');
         if (!container) return;
         
-        // 새로운 데이터들을 HTML로 변환하여 기존 내용 맨 위(afterbegin)에 끼워 넣음
         const html = newMsgs.map(item => this.formatMsgHtml(item)).join('');
         container.insertAdjacentHTML('afterbegin', html);
     },
@@ -107,7 +108,8 @@ const UIManager = {
         }
     },
 
-    triggerEmergencyMode(plantName) {
+    // 수정: eta 파라미터 추가 및 타이머 실행 인과관계 연결
+    triggerEmergencyMode(plantName, eta) {
         const indicator = document.getElementById('status-indicator');
         if (indicator) {
             indicator.innerHTML = '🚨 비상 모드 (Emergency)';
@@ -127,6 +129,62 @@ const UIManager = {
             ragPanel.style.display = 'block';
             document.getElementById('rag-messages').innerHTML = ''; 
         }
+
+        // 지도 위 ETA 타이머 실행
+        if (eta > 0) {
+            this.startEtaTimer(eta);
+        }
+    },
+
+    // 추가: 지도 위에 ETA 타이머를 생성하고 갱신하는 함수
+    startEtaTimer(totalSeconds) {
+        // 기존 타이머 인터벌 초기화 방어 로직
+        if (this.etaInterval) clearInterval(this.etaInterval);
+
+        let timerEl = document.getElementById('map-eta-timer');
+        if (!timerEl) {
+            timerEl = document.createElement('div');
+            timerEl.id = 'map-eta-timer';
+            timerEl.style.cssText = `
+                position: absolute;
+                top: 20px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: rgba(0, 0, 0, 0.8);
+                color: #ff3333;
+                padding: 15px 30px;
+                border: 2px solid #ff3333;
+                border-radius: 10px;
+                font-size: 24px;
+                font-weight: bold;
+                z-index: 1000;
+                pointer-events: none;
+            `;
+            // map 컨테이너에 자식 요소로 추가
+            const mapContainer = document.getElementById('map');
+            if (mapContainer) {
+                mapContainer.appendChild(timerEl);
+            } else {
+                document.body.appendChild(timerEl);
+            }
+        }
+
+        let currentSeconds = totalSeconds;
+
+        const updateTimerUI = () => {
+            if (currentSeconds <= 0) {
+                timerEl.innerHTML = "⚠️ 대상 도달 완료";
+                clearInterval(this.etaInterval);
+                return;
+            }
+            const m = Math.floor(currentSeconds / 60).toString().padStart(2, '0');
+            const s = (currentSeconds % 60).toString().padStart(2, '0');
+            timerEl.innerHTML = `도착 예상 시간 - ${m}:${s}`;
+            currentSeconds--;
+        };
+
+        updateTimerUI(); 
+        this.etaInterval = setInterval(updateTimerUI, 1000);
     },
 
     appendRagMessage(text) {
@@ -147,6 +205,7 @@ const UIManager = {
         container.scrollTop = container.scrollHeight;
     },
 
+    // 수정: 비상 해제 시 타이머 제거 로직 추가
     clearEmergencyMode() {
         const indicator = document.getElementById('status-indicator');
         if (indicator) {
@@ -162,5 +221,13 @@ const UIManager = {
         if (ragPanel) {
             ragPanel.style.display = 'none';
         }
+
+        // 타이머 해제 및 DOM 제거
+        if (this.etaInterval) {
+            clearInterval(this.etaInterval);
+            this.etaInterval = null;
+        }
+        const timerEl = document.getElementById('map-eta-timer');
+        if (timerEl) timerEl.remove();
     }
 };

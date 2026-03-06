@@ -9,11 +9,11 @@ const SSEManager = {
             MapManager.renderWindLayer();
         });
         
-        // 비상 발령 신호 수신
+        // 비상 발령 신호 수신 (수정: ETA 데이터 수신 및 전달)
         evtSource.addEventListener('emergency_alert', (e) => {
             const data = JSON.parse(e.data);
-            console.log("[SSE] 비상 발령 감지:", data.plant_name);
-            UIManager.triggerEmergencyMode(data.plant_name);
+            console.log("[SSE] 비상 발령 감지:", data.plant_name, "ETA:", data.eta);
+            UIManager.triggerEmergencyMode(data.plant_name, data.eta);
         });
 
         // 비상 발령 해제 신호 수신

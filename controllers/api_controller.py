@@ -7,17 +7,17 @@ import time
 import logging
 import json
 
-# 'api'라는 이름의 Blueprint 객체 생성 (라우터 그룹화)
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 
-# --- 추가: 서버 전역 비상 상태 변수 ---
+# --- 서버 전역 비상 상태 변수 ---
 EMERGENCY_STATE = {
     "is_emergency": False,
     "trigger_time": 0,
-    "clear_time": 0,  # 추가: 해제 신호 감지용
+    "clear_time": 0,
     "plant_name": "",
     "latest_message": None,
-    "msg_time": 0
+    "msg_time": 0,
+    "eta": 0  # 추가: 도착 예정 시간(초)
 }
 
 @api_bp.route('/weather/wind')
@@ -56,35 +56,39 @@ def sse_stream():
     def event_generator():
         last_sent_time = wm.WIND_LAST_UPDATED
         last_emergency_time = 0
-        last_clear_time = 0  # 추가: 마지막 해제 시간 추적
+        last_clear_time = 0
         last_msg_time = 0
         last_disaster_time = 0
 
         while True:
             yield "event: ping\ndata: keep-alive\n\n"
             
-            # (기존 바람장 갱신 감지)
+            # (바람장 갱신 감지)
             if wm.WIND_LAST_UPDATED > last_sent_time:
                 last_sent_time = wm.WIND_LAST_UPDATED
                 yield "event: wind_update\ndata: updated\n\n"
             
-            # (기존 비상 모드 발동 감지)
+            # (비상 모드 발동 감지 - ETA 데이터 포함)
             if EMERGENCY_STATE["trigger_time"] > last_emergency_time:
                 last_emergency_time = EMERGENCY_STATE["trigger_time"]
-                alert_data = json.dumps({"plant_name": EMERGENCY_STATE["plant_name"]})
+                alert_data = json.dumps({
+                    "plant_name": EMERGENCY_STATE["plant_name"],
+                    "eta": EMERGENCY_STATE["eta"]
+                })
                 yield f"event: emergency_alert\ndata: {alert_data}\n\n"
                 
-            # --- 추가: 비상 모드 해제 감지 ---
+            # (비상 모드 해제 감지)
             if EMERGENCY_STATE["clear_time"] > last_clear_time:
                 last_clear_time = EMERGENCY_STATE["clear_time"]
                 yield "event: emergency_clear\ndata: cleared\n\n"
                 
-            # (기존 RAG 실시간 메시지 감지)
+            # (RAG 실시간 메시지 감지)
             if EMERGENCY_STATE["msg_time"] > last_msg_time:
                 last_msg_time = EMERGENCY_STATE["msg_time"]
                 msg_data = json.dumps({"text": EMERGENCY_STATE["latest_message"]})
                 yield f"event: rag_message\ndata: {msg_data}\n\n"
             
+            # (재난 문자 갱신 감지)
             if DISASTER_STATE["update_time"] > last_disaster_time:
                 last_disaster_time = DISASTER_STATE["update_time"]
                 data = json.dumps(DISASTER_STATE["new_msgs"])
@@ -94,38 +98,56 @@ def sse_stream():
             
     return Response(event_generator(), mimetype="text/event-stream")
 
-@api_bp.route('/webhook/emergency', methods=['POST'])
-def receive_emergency_webhook():
-    """RAG 또는 Azure Functions로부터 비상 알림을 수신"""
+
+@api_bp.route('/webhook/eta', methods=['POST'])
+def receive_eta_webhook():
+    """[신규] 도착 예정 시간(ETA)을 수신하여 비상 모드를 발동"""
     global EMERGENCY_STATE
     try:
         payload = request.get_json()
-        
-        # RAG 시스템의 데이터 추출 (plant_name이 추가로 넘어온다고 가정)
         plant_name = payload.get('plant_name', '원자력 발전소(미상)')
+        eta = payload.get('eta', 0)
         
-        # 기존 텍스트(text) 포맷이나 RAG의 요약 텍스트(summary_text) 모두 호환되도록 처리
-        message = payload.get('summary_text') or payload.get('text') or "비상 상황이 발생했습니다."
-        
-        # 서버 상태를 비상으로 업데이트 (시간을 갱신하여 SSE가 감지하도록 함)
+        # 상태 전환 및 SSE 발송 트리거
         EMERGENCY_STATE["is_emergency"] = True
         EMERGENCY_STATE["plant_name"] = plant_name
+        EMERGENCY_STATE["eta"] = eta
         EMERGENCY_STATE["trigger_time"] = time.time()
         
+        return jsonify({"status": "success", "message": "Emergency mode activated by ETA"}), 200
+    except Exception as e:
+        return jsonify({"error": "Bad Request", "details": str(e)}), 400
+
+
+@api_bp.route('/webhook/emergency', methods=['POST'])
+def receive_emergency_webhook():
+    """[수정] RAG 시스템의 분석 보고 메시지를 수신"""
+    global EMERGENCY_STATE
+    try:
+        # 비상 상황이 아니면 RAG 메시지 수신 거부 (인과관계 제어)
+        if not EMERGENCY_STATE["is_emergency"]:
+            return jsonify({"error": "비상 모드가 활성화되지 않아 메시지를 수신할 수 없습니다."}), 403
+            
+        payload = request.get_json()
+        message = payload.get('summary_text') or payload.get('text') or "비상 상황 보고."
+        
+        # 상태 전환 없이 메시지만 업데이트 후 SSE 발송 트리거
         EMERGENCY_STATE["latest_message"] = message
         EMERGENCY_STATE["msg_time"] = time.time()
         
-        return jsonify({"status": "success", "message": "Emergency broadcasted"}), 200
+        return jsonify({"status": "success", "message": "RAG message broadcasted"}), 200
     except Exception as e:
         return jsonify({"error": "Bad Request", "details": str(e)}), 400
     
+
 @api_bp.route('/webhook/emergency/clear', methods=['POST'])
 def clear_emergency_webhook():
     """비상 상황 해제 알림을 수신"""
     global EMERGENCY_STATE
     try:
         EMERGENCY_STATE["is_emergency"] = False
-        EMERGENCY_STATE["clear_time"] = time.time() # 해제 시간 갱신
+        EMERGENCY_STATE["eta"] = 0 # 타이머 초기화
+        EMERGENCY_STATE["clear_time"] = time.time() 
         
         return jsonify({"status": "success", "message": "Emergency cleared"}), 200
     except Exception as e:

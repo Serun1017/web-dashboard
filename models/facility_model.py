@@ -156,7 +156,7 @@ def get_initial_disaster_msgs(limit=20):
         return []
     finally:
         conn.close()
-        
+
 def poll_new_disaster_msgs():
     """스케줄러에 등록할 폴링 함수: 새로운 재난 문자 감지"""
     global DISASTER_STATE
@@ -203,5 +203,26 @@ def poll_new_disaster_msgs():
                 
     except Exception as e:
         logging.error(f"[스케줄러] 🔴 재난 문자 폴링 에러: {e}")
+    finally:
+        conn.close()
+
+def get_plant_info_by_code(plant_code):
+    """원전 코드로 원전 이름, 위도, 경도 조회"""
+    conn = get_db_connection()
+    if not conn: return {"name": "원자력 발전소(미상)", "lat": 0.0, "lon": 0.0}
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("SELECT plant_name, plant_lat, plant_lon FROM khnp_plant_info WHERE plant_code = %s", (plant_code,))
+            res = cur.fetchone()
+            if res:
+                return {
+                    "name": res['plant_name'],
+                    "lat": float(res['plant_lat']),
+                    "lon": float(res['plant_lon'])
+                }
+            return {"name": "원자력 발전소(미상)", "lat": 0.0, "lon": 0.0}
+    except Exception as e:
+        logging.error(f"원전 정보 조회 에러: {e}")
+        return {"name": "원자력 발전소(미상)", "lat": 0.0, "lon": 0.0}
     finally:
         conn.close()

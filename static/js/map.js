@@ -4,6 +4,7 @@ const MapManager = {
     map: null,
     velocityLayer: null,
     layerGroups: {},
+    dangerCircle: null, // 추가: 위험 구역 레이어 변수
 
     init() {
         this.map = L.map('map', {
@@ -106,6 +107,32 @@ const MapManager = {
             console.warn(e.message);
         } finally {
             UIManager.hideLoading();
+        }
+    },
+
+    // --- [추가] 위험 구역(방사선 비상 계획 구역) 렌더링 함수 ---
+    drawDangerZone(lat, lon, radius) {
+        this.clearDangerZone(); // 중복 생성 방지를 위한 초기화
+        
+        // Leaflet 라이브러리(L)를 이용한 원 레이어 생성
+        if (typeof L !== 'undefined' && this.map) {
+            this.dangerCircle = L.circle([lat, lon], {
+                color: '#ff0000',      // 테두리 색상 (빨간색)
+                fillColor: '#ff0000',  // 내부 채우기 색상
+                fillOpacity: 0.2,      // 투명도
+                weight: 2,             // 테두리 굵기
+                radius: radius         // 미터 단위
+            }).addTo(this.map);
+            
+            // 사용자가 상황을 즉시 파악할 수 있도록, 원 전체가 화면에 들어오게 줌 레벨과 시점을 강제 조정
+            this.map.fitBounds(this.dangerCircle.getBounds());
+        }
+    },
+
+    clearDangerZone() {
+        if (this.dangerCircle && this.map) {
+            this.map.removeLayer(this.dangerCircle);
+            this.dangerCircle = null;
         }
     }
 };

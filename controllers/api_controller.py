@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request, Response
 from models.weather_model import get_wind_data
-from models.facility_model import get_factories, get_plants, get_shelters, get_plant_details, DISASTER_STATE, get_initial_disaster_msgs
+from models.facility_model import get_factories, get_plants, get_shelters, get_plant_details, DISASTER_STATE, get_initial_disaster_msgs, get_plant_info_by_code
 
 import models.weather_model as wm
 import time
@@ -14,10 +14,13 @@ EMERGENCY_STATE = {
     "is_emergency": False,
     "trigger_time": 0,
     "clear_time": 0,
+    "plant_code": "",
     "plant_name": "",
+    "lat": 0.0,  # 추가됨
+    "lon": 0.0,  # 추가됨
     "latest_message": None,
     "msg_time": 0,
-    "eta": 0  # 추가: 도착 예정 시간(초)
+    "eta": 0
 }
 
 @api_bp.route('/weather/wind')
@@ -72,7 +75,10 @@ def sse_stream():
             if EMERGENCY_STATE["trigger_time"] > last_emergency_time:
                 last_emergency_time = EMERGENCY_STATE["trigger_time"]
                 alert_data = json.dumps({
+                    "plant_code": EMERGENCY_STATE["plant_code"],
                     "plant_name": EMERGENCY_STATE["plant_name"],
+                    "lat": EMERGENCY_STATE["lat"],  # 좌표 추가
+                    "lon": EMERGENCY_STATE["lon"],  # 좌표 추가
                     "eta": EMERGENCY_STATE["eta"]
                 })
                 yield f"event: emergency_alert\ndata: {alert_data}\n\n"
@@ -100,23 +106,26 @@ def sse_stream():
 
 @api_bp.route('/webhook/eta', methods=['POST'])
 def receive_eta_webhook():
-    """[신규] 도착 예정 시간(ETA)을 수신하여 비상 모드를 발동"""
     global EMERGENCY_STATE
     try:
         payload = request.get_json()
-        plant_name = payload.get('plant_name', '원자력 발전소(미상)')
+        plant_code = payload.get('plant_code') or payload.get('plant_name') or 'WS'
         eta = payload.get('eta', 0)
         
-        # 상태 전환 및 SSE 발송 트리거
+        # 이름, 위도, 경도 함께 조회
+        plant_info = get_plant_info_by_code(plant_code)
+        
         EMERGENCY_STATE["is_emergency"] = True
-        EMERGENCY_STATE["plant_name"] = plant_name
+        EMERGENCY_STATE["plant_code"] = plant_code
+        EMERGENCY_STATE["plant_name"] = plant_info["name"]
+        EMERGENCY_STATE["lat"] = plant_info["lat"]
+        EMERGENCY_STATE["lon"] = plant_info["lon"]
         EMERGENCY_STATE["eta"] = eta
         EMERGENCY_STATE["trigger_time"] = time.time()
         
-        return jsonify({"status": "success", "message": "Emergency mode activated by ETA"}), 200
+        return jsonify({"status": "success", "message": f"Emergency mode activated for {plant_info['name']}"}), 200
     except Exception as e:
         return jsonify({"error": "Bad Request", "details": str(e)}), 400
-
 
 @api_bp.route('/webhook/emergency', methods=['POST'])
 def receive_emergency_webhook():

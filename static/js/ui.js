@@ -108,8 +108,8 @@ const UIManager = {
         }
     },
 
-    // 수정: eta 파라미터 추가 및 타이머 실행 인과관계 연결
-    triggerEmergencyMode(plantName, eta) {
+    // 파라미터에 plantCode 추가
+    triggerEmergencyMode(plantCode, plantName, eta) {
         const indicator = document.getElementById('status-indicator');
         if (indicator) {
             indicator.innerHTML = '🚨 비상 모드 (Emergency)';
@@ -124,13 +124,23 @@ const UIManager = {
         if (sidebar && sidebar.classList.contains('collapsed')) {
             document.getElementById('sidebar-toggle').click();
         }
+        
         const ragPanel = document.getElementById('rag-panel');
         if (ragPanel) {
             ragPanel.style.display = 'block';
             document.getElementById('rag-messages').innerHTML = ''; 
         }
 
-        // 지도 위 ETA 타이머 실행
+        // 발전소 상세 정보(방사선량, 기상 등) 강제 렌더링
+        if (plantCode && plantName) {
+            this.showPlantDetails({ id: plantCode, name: plantName });
+        }
+
+        // --- 지도에 30km 위험 반경 렌더링 호출 ---
+        if (lat && lon && typeof MapManager.drawDangerZone === 'function') {
+            MapManager.drawDangerZone(lat, lon, 30000); // 30,000m = 30km
+        }
+
         if (eta > 0) {
             this.startEtaTimer(eta);
         }
@@ -173,7 +183,7 @@ const UIManager = {
 
         const updateTimerUI = () => {
             if (currentSeconds <= 0) {
-                timerEl.innerHTML = "⚠️ 대상 도달 완료";
+                timerEl.innerHTML = "⚠️ 위험";
                 clearInterval(this.etaInterval);
                 return;
             }
@@ -229,5 +239,10 @@ const UIManager = {
         }
         const timerEl = document.getElementById('map-eta-timer');
         if (timerEl) timerEl.remove();
+
+        // --- 위험 반경 레이어 제거 ---
+        if (typeof MapManager.clearDangerZone === 'function') {
+            MapManager.clearDangerZone();
+        }
     }
 };

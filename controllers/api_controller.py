@@ -98,7 +98,6 @@ def sse_stream():
             
     return Response(event_generator(), mimetype="text/event-stream")
 
-
 @api_bp.route('/webhook/eta', methods=['POST'])
 def receive_eta_webhook():
     """[신규] 도착 예정 시간(ETA)을 수신하여 비상 모드를 발동"""

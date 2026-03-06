@@ -5,7 +5,7 @@ import logging
 from config import DB_CONFIG
 
 DISASTER_STATE = {
-    "last_id": 0,
+    "last_id": -1,  # -1: 서버 시작 직후 기준점이 잡히지 않은 상태
     "new_msgs": [],
     "update_time": 0
 }
@@ -132,25 +132,24 @@ def get_plant_details(plant_id):
         
 def get_initial_disaster_msgs(limit=20):
     """최초 접속 시 표시할 재난 문자 목록 (최신순)"""
-    global DISASTER_STATE
     conn = get_db_connection()
     if not conn: return []
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            # 수정된 쿼리: 실제 컬럼명(id, 메세지, updated_at)을 사용하고 별칭 부여
+            # 쿼리의 sn을 id로 변경
             cur.execute("""
-                SELECT id AS id, 메세지 AS msg, updated_at AS created_at 
+                SELECT id, 메세지 AS msg, updated_at AS created_at 
                 FROM gov_disaster_msg 
                 ORDER BY id DESC 
                 LIMIT %s
             """, (limit,))
             records = cur.fetchall()
             
-            # 시간 데이터를 문자열로 변환
             for r in records:
                 if 'created_at' in r and r['created_at']:
                     r['created_at'] = r['created_at'].strftime('%Y-%m-%d %H:%M:%S')
 
+            # 새로고침 시 스케줄러 꼬임 방지를 위해 전역 변수 last_id 조작 제거
             return records
     except Exception as e:
         logging.error(f"초기 재난 문자 로드 에러: {e}")
@@ -159,22 +158,22 @@ def get_initial_disaster_msgs(limit=20):
         conn.close()
 
 def poll_new_disaster_msgs():
+    """스케줄러에 등록할 폴링 함수: 새로운 재난 문자 감지"""
     global DISASTER_STATE
     conn = get_db_connection()
     if not conn: return
-    
     try:
         import time
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            # 1. 서버 구동 후 최초 1회 기준점 설정 (기존 return 처리 제거)
-            if DISASTER_STATE["last_id"] == 0:
-                cur.execute("SELECT MAX(id) as max_id FROM gov_disaster_msg")
+            # 2. 기준점이 -1일 때만 최초 1회 실행
+            if DISASTER_STATE["last_id"] == -1:
+                cur.execute("SELECT COALESCE(MAX(id), 0) as max_id FROM gov_disaster_msg")
                 result = cur.fetchone()
-                if result and result['max_id']:
-                    DISASTER_STATE["last_id"] = result['max_id']
-                return
+                # 0을 False로 인식하지 않도록 명시적 할당
+                DISASTER_STATE["last_id"] = result['max_id'] if result else 0
+                return 
             
-            # 2. 이후 주기부터는 기준점보다 큰 새 데이터 조회
+            # 3. 새 데이터 조회
             cur.execute("""
                 SELECT id, 메세지 AS msg, updated_at AS created_at 
                 FROM gov_disaster_msg 
@@ -190,7 +189,8 @@ def poll_new_disaster_msgs():
                         
                 DISASTER_STATE["last_id"] = new_records[-1]['id']
                 DISASTER_STATE["new_msgs"] = new_records
-                DISASTER_STATE["update_time"] = time.time() 
+                DISASTER_STATE["update_time"] = time.time() # SSE 갱신 트리거 작동
+                
     except Exception as e:
         logging.error(f"재난 문자 폴링 에러: {e}")
     finally:

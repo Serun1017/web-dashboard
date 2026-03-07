@@ -6,7 +6,8 @@ const CONFIG = {
         alerts: '/api/disaster/alerts',
         factories: '/api/facilities/factories',
         plants: '/api/facilities/plants',
-        shelters: '/api/facilities/shelters'
+        shelters: '/api/facilities/shelters',
+        ragTrigger: 'http://localhost:8000/api/rag/trigger'
     },
     mapCenter: [36.0, 127.5],
     zoom: 7,

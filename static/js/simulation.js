@@ -38,7 +38,7 @@ const SimulationManager = {
         }
     },
 
-    startTraining() {
+    async startTraining() {
         this.isTraining = true;
 
         // --- [수정] select 태그의 선택된 옵션에서 데이터를 추출합니다 ---
@@ -66,8 +66,31 @@ const SimulationManager = {
             btnToggle.style.color = "#fff";
         }
 
-        // UI 매니저에 훈련 발령 전달
+        // 1. 프론트엔드 UI를 훈련 모드로 전환 (기존 로직)
         UIManager.triggerEmergencyMode(code, `[훈련] ${name}`, eta, lat, lon, true);
+
+        // 2. config.js에서 분리된 URL을 사용하여 RAG 시스템으로 POST 전송
+        try {
+            const response = await fetch(CONFIG.endpoints.ragTrigger, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    plant_code: code,
+                    eta: eta,
+                    is_training: true 
+                })
+            });
+
+            if (!response.ok) {
+                console.warn("[훈련 모드] RAG 시스템으로 데이터 전송 실패:", response.status);
+            } else {
+                console.log("[훈련 모드] RAG 시스템으로 데이터 전송 성공");
+            }
+        } catch (error) {
+            console.error("[훈련 모드] RAG 서버와 통신할 수 없습니다 (네트워크/CORS 문제일 수 있음).", error);
+        }
     },
 
     stopTraining(isSilent = false) {

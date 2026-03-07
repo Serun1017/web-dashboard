@@ -4,7 +4,7 @@ const MapManager = {
     map: null,
     velocityLayer: null,
     layerGroups: {},
-    dangerCircle: null, // 추가: 위험 구역 레이어 변수
+    dangerCircle: null,
 
     init() {
         this.map = L.map('map', {
@@ -19,19 +19,21 @@ const MapManager = {
             attribution: '© OpenStreetMap & CartoDB'
         }).addTo(this.map);
 
-        this.map.on('click', (e) => SimulationManager.handleMapClick(e));
-
         this.layerGroups = {
             plants: L.layerGroup().addTo(this.map),    
             factories: L.layerGroup().addTo(this.map), 
             shelters: L.layerGroup()
         };
 
+        // --- position 옵션을 추가하여 우측 상단으로 이동 ---
         L.control.layers(null, {
             "<span style='color:red; font-weight:bold;'>원자력 발전소</span>": this.layerGroups.plants,
             "<span style='color:blue; font-weight:bold;'>고객사 공장</span>": this.layerGroups.factories,
             "<span style='color:green; font-weight:bold;'>비상 대피소</span>": this.layerGroups.shelters
-        }, { collapsed: false }).addTo(this.map);
+        }, { 
+            position: 'topright',  // 위치 지정 (topleft, topright, bottomleft, bottomright 사용 가능)
+            collapsed: false 
+        }).addTo(this.map);
     },
 
     async loadFacilityData() {
@@ -46,14 +48,28 @@ const MapManager = {
             const factories = await resFactories.json();
             const shelters = await resShelters.json();
 
+            // --- [신규 추가] 훈련 모드용 원전 선택 드롭다운에 DB 데이터 바인딩 ---
+            const plantSelect = document.getElementById('train-plant-select');
+            if (plantSelect) {
+                plantSelect.innerHTML = ''; // 기본 "로딩 중..." 텍스트 제거
+                plants.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.id;          // 원전 코드 (예: WS)
+                    opt.dataset.name = p.name; // 원전 이름
+                    opt.dataset.lat = p.lat;   // 위도
+                    opt.dataset.lon = p.lon;   // 경도
+                    opt.textContent = p.name;  // 사용자에게 보여질 텍스트
+                    plantSelect.appendChild(opt);
+                });
+            }
+
             plants.forEach(p => {
                 if (!p.lat || !p.lon) return;
                 const marker = L.circleMarker([p.lat, p.lon], {
                     radius: 12, fillColor: "#ff0000", color: "#ffffff", weight: 2, fillOpacity: 0.8
                 }).addTo(this.layerGroups.plants)
-                .bindPopup(`<b>[발전소] ${p.name}</b>`); // 팝업 내용 간소화
+                .bindPopup(`<b>[발전소] ${p.name}</b>`); 
 
-                // 추가: 마커 클릭 시 사이드바에 상세 정보 렌더링 지시
                 marker.on('click', () => {
                     UIManager.showPlantDetails(p);
                 });
@@ -110,21 +126,18 @@ const MapManager = {
         }
     },
 
-    // --- [추가] 위험 구역(방사선 비상 계획 구역) 렌더링 함수 ---
     drawDangerZone(lat, lon, radius) {
-        this.clearDangerZone(); // 중복 생성 방지를 위한 초기화
+        this.clearDangerZone(); 
         
-        // Leaflet 라이브러리(L)를 이용한 원 레이어 생성
         if (typeof L !== 'undefined' && this.map) {
             this.dangerCircle = L.circle([lat, lon], {
-                color: '#ff0000',      // 테두리 색상 (빨간색)
-                fillColor: '#ff0000',  // 내부 채우기 색상
-                fillOpacity: 0.2,      // 투명도
-                weight: 2,             // 테두리 굵기
-                radius: radius         // 미터 단위
+                color: '#ff0000',      
+                fillColor: '#ff0000',  
+                fillOpacity: 0.2,      
+                weight: 2,             
+                radius: radius         
             }).addTo(this.map);
             
-            // 사용자가 상황을 즉시 파악할 수 있도록, 원 전체가 화면에 들어오게 줌 레벨과 시점을 강제 조정
             this.map.fitBounds(this.dangerCircle.getBounds());
         }
     },
@@ -136,7 +149,6 @@ const MapManager = {
         }
     },
 
-    // --- [신규 추가] 대피소 레이어 제어 함수 ---
     showShelters() {
         if (this.map && this.layerGroups.shelters) {
             this.map.addLayer(this.layerGroups.shelters);

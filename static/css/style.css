@@ -17,9 +17,9 @@ body {
     gap: 20px;
     overflow-y: auto;
     border-right: 1px solid #333;
-    z-index: 2000; /* 맵(z-index:1)보다 확실히 위에 띄움 */
-    position: relative; /* 토글 버튼 배치를 위한 기준점 */
-    transition: margin-left 0.3s ease; /* Flex 구조에서 지도 영역 자동 확장을 유도 */
+    z-index: 2000; 
+    position: relative; 
+    transition: margin-left 0.3s ease; 
 }
 .panel {
     background: #2a2a2a;
@@ -34,32 +34,11 @@ body {
     padding-bottom: 8px;
 }
 
-/* 닫힘 상태 클래스 */
 #sidebar.collapsed {
     margin-left: -350px;
 }
 
-/* 토글 버튼 스타일 */
-#sidebar-toggle {
-    position: absolute;
-    right: -30px; /* 사이드바 바깥(지도 쪽)으로 튀어나오게 배치 */
-    top: 50%;
-    transform: translateY(-50%);
-    width: 30px;
-    height: 60px;
-    background: #1e1e1e;
-    color: white;
-    border: 1px solid #333;
-    border-left: none;
-    border-radius: 0 5px 5px 0;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 2001; /* 사이드바보다 위 */
-}
-
-/* 타임라인과 SOP 스타일 */
+/* 타임라인 스타일 */
 .timeline-item {
     font-size: 13px;
     margin-bottom: 10px;
@@ -84,34 +63,6 @@ body {
     z-index: 1;
 }
 
-/* 시뮬레이션 컨트롤 스타일 */
-#sim-controls { 
-    position: absolute; 
-    top: 20px; /* 140px에서 20px로 변경하여 최상단으로 끌어올림 */
-    right: 20px; 
-    z-index: 1000; 
-    background: rgba(0,0,0,0.8); 
-    padding: 15px; 
-    border-radius: 8px; 
-    border: 1px solid #ff4b2b; 
-}
-/* 시뮬레이션 버튼 스타일 */
-#btn-toggle-sim {
-    background: #ff4b2b;
-    color: white;
-    border: none;
-    padding: 8px 15px;
-    cursor: pointer;
-    border-radius: 4px;
-    font-weight: bold;
-    width: 100%;
-    transition: background 0.3s;
-}
-#btn-toggle-sim.active {
-    background: #4facfe;
-    border-color: #4facfe;
-}
-
 /* 로딩 화면 스타일 */
 #loading {
     position: absolute;
@@ -124,12 +75,6 @@ body {
     border-radius: 10px;
     display: none;
     text-align: center;
-}
-
-/* Leaflet 컨트롤 위치 조정 */
-.leaflet-top.leaflet-right {
-    margin-top: 110px; /* 시뮬레이션 창의 높이만큼 공간을 비워 아래로 밀어냄 */
-    margin-right: 10px;
 }
 
 /* --- 발전소 상세 정보 카드 스타일 --- */

@@ -14,9 +14,7 @@
 </head>
 <body>
 
-    <div id="sidebar">
-        <button id="sidebar-toggle">◀</button>
-        
+    <div id="sidebar" style="display: flex; flex-direction: column; height: 100vh;">
         <h2 style="font-size: 18px; text-align: center; color: #fff;">재난/기상 통합 관제</h2>
         
         <div class="panel" id="plant-info-panel" style="border-left: 4px solid #4facfe; transition: border-color 0.3s;">
@@ -44,6 +42,13 @@
                 <div class="empty-state" style="color: #ff9a9e;">비상 시스템 대기 중...</div>
             </div>
         </div>
+
+        <div class="panel" id="training-panel" style="margin-top: auto; border-top: 1px solid #444; padding-top: 15px; margin-bottom: 0;">
+            <h3 style="color: #ff9800; font-size: 14px; margin-bottom: 10px;">🛠️ 시스템 훈련</h3>
+            <button id="btn-toggle-training" style="width: 100%; padding: 8px; background-color: #ff9800; color: #000; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">
+                훈련 모드 시작
+            </button>
+        </div>
     </div>
 
     <div id="map-container">
@@ -53,17 +58,32 @@
 
         <div id="loading">바람장 데이터를 처리 중입니다...<br>(최대 1~2초 소요)</div>
         
-        <div id="sim-controls">
-            <h3 style="margin-bottom: 10px; font-size:13px; text-align: center;">시뮬레이션 모드</h3>
-            <button id="btn-toggle-sim">가상 사고 위치 지정 (Off)</button>
-        </div>
-        
         <div id="map"></div>
+    </div>
+
+    <div id="training-modal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:#222; padding:25px; z-index:2000; border:2px solid #ff9800; border-radius:8px; color:white; width: 320px; box-shadow: 0 4px 20px rgba(0,0,0,0.8);">
+        <h3 style="color: #ff9800; margin-bottom: 15px; text-align: center;">가상 훈련 설정</h3>
+        
+        <label style="display:block; margin-bottom: 15px;">훈련 대상 원전: 
+            <select id="train-plant-select" style="width:100%; padding:8px; margin-top:5px; background:#333; color:white; border:1px solid #555; border-radius:4px; outline:none;">
+                <option value="">데이터 로딩 중...</option>
+            </select>
+        </label>
+        
+        <label style="display:block; margin-bottom: 25px;">예상 도착 시간 (ETA, 초): 
+            <input type="number" id="train-eta" value="120" style="width:100%; padding:8px; margin-top:5px; background:#333; color:white; border:1px solid #555; border-radius:4px; outline:none;">
+        </label>
+        
+        <div style="display: flex; justify-content: space-between;">
+            <button id="btn-cancel-training" style="padding: 8px 15px; background: #555; color: white; border: none; border-radius: 4px; cursor: pointer;">취소</button>
+            <button id="btn-start-training" style="padding: 8px 15px; background: #ff9800; color: black; font-weight: bold; border: none; border-radius: 4px; cursor: pointer;">발령</button>
+        </div>
     </div>
 
     <script src="{{ url_for('static', filename='js/config.js') }}"></script>
     <script src="{{ url_for('static', filename='js/ui.js') }}"></script>
     <script src="{{ url_for('static', filename='js/map.js') }}"></script>
     <script src="{{ url_for('static', filename='js/simulation.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script></body>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
 </html>

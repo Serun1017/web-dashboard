@@ -22,7 +22,7 @@ if os.environ.get('WERKZEUG_RUN_MAIN') == 'true' or not app.debug:
     scheduler = BackgroundScheduler(timezone="Asia/Seoul")
     scheduler.add_job(update_wind_cache_job, 'cron', minute='15')
     
-    # 추가: 1분 주기로 새 재난 문자 확인 (DB 부하 방지용 간격)
+    # 추가: 5분 주기로 새 재난 문자 확인 (DB 부하 방지용 간격)
     scheduler.add_job(poll_new_disaster_msgs, 'interval', minutes=5)
     scheduler.start()
 

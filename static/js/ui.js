@@ -1,8 +1,8 @@
 // static/js/ui.js
 
 const UIManager = {
-    // 추가: 내부 타이머 관리를 위한 변수
     etaInterval: null,
+    isEmergency: false, 
 
     showLoading: () => document.getElementById('loading').style.display = 'block',
     hideLoading: () => document.getElementById('loading').style.display = 'none',
@@ -42,24 +42,20 @@ const UIManager = {
     },
 
     initSidebarFeatures() {
-        const sidebar = document.getElementById('sidebar');
-        const toggleBtn = document.getElementById('sidebar-toggle');
-        
-        if (toggleBtn && sidebar) {
-            toggleBtn.addEventListener('click', () => {
-                sidebar.classList.toggle('collapsed');
-                toggleBtn.innerText = sidebar.classList.contains('collapsed') ? '▶' : '◀';
-            });
-        }
+        // 사이드바 토글 관련 이벤트 리스너 제거 완료
 
-        // --- [신규 추가] 수동 비상 해제 버튼 이벤트 리스너 ---
         const clearEmergencyBtn = document.getElementById('btn-clear-emergency');
         if (clearEmergencyBtn) {
             clearEmergencyBtn.addEventListener('click', async () => {
-                // 사용자 오작동 방지를 위한 확인창
+                if (SimulationManager.isTraining) {
+                    if (confirm("가상 훈련 모드를 종료하시겠습니까?")) {
+                        SimulationManager.stopTraining();
+                    }
+                    return;
+                }
+
                 if (confirm("정말로 비상 상황을 수동으로 해제하시겠습니까?\n모든 시스템이 평시 모드로 복구됩니다.")) {
                     try {
-                        // 백엔드의 기존 해제 웹훅으로 POST 요청 전송
                         const res = await fetch('/api/webhook/emergency/clear', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -68,9 +64,6 @@ const UIManager = {
                         
                         if (!res.ok) throw new Error("서버 응답 오류");
                         console.log("비상 상황 수동 해제 요청 전송 완료");
-                        // 참고: UI 초기화 로직은 여기서 직접 실행하지 않습니다.
-                        // 서버가 SSE로 'emergency_clear' 이벤트를 브로드캐스트하면
-                        // main.js의 리스너가 이를 감지하여 UIManager.clearEmergencyMode()를 자동 실행합니다.
                     } catch (e) {
                         console.error("비상 해제 요청 실패:", e);
                         alert("비상 상황 해제 요청에 실패했습니다. 서버 상태를 확인하세요.");
@@ -128,28 +121,47 @@ const UIManager = {
             console.error(error);
             details.innerHTML = `<div class="empty-state" style="color:#F44336;">데이터를 불러올 수 없습니다.</div>`;
         }
-        
-        const sidebar = document.getElementById('sidebar');
-        if (sidebar && sidebar.classList.contains('collapsed')) {
-            document.getElementById('sidebar-toggle').click();
-        }
     },
 
-    // 파라미터에 plantCode 추가
-    triggerEmergencyMode(plantCode, plantName, eta, lat, lon) {
+    triggerEmergencyMode(plantCode, plantName, eta, lat, lon, isTrainingEvent = false) {
+        if (this.isEmergency && isTrainingEvent) return;
+
+        if (!isTrainingEvent && SimulationManager.isTraining) {
+            SimulationManager.stopTraining(true); 
+            alert("⚠️ [실제 상황 발생] 훈련 모드가 강제 종료되며 실제 비상 체제로 전환합니다.");
+        }
+
+        const trainingPanel = document.getElementById('training-panel');
+
+        if (!isTrainingEvent) {
+            this.isEmergency = true; 
+            if (trainingPanel) trainingPanel.style.display = 'none';
+        }
+
         const indicator = document.getElementById('status-indicator');
         if (indicator) {
-            indicator.innerHTML = '🚨 비상 모드 (Emergency)';
-            indicator.style.background = 'rgba(244, 67, 54, 0.9)'; 
-            indicator.style.borderColor = '#d32f2f';
+            if (isTrainingEvent) {
+                indicator.innerHTML = '🟠 훈련 모드 (Training)';
+                indicator.style.background = 'rgba(255, 152, 0, 0.9)';
+                indicator.style.borderColor = '#f57c00';
+                document.body.style.boxShadow = "inset 0 0 100px rgba(255, 152, 0, 0.4)";
+                
+                const ragPanel = document.getElementById('rag-panel');
+                if (ragPanel) ragPanel.style.borderLeft = "4px solid #ff9800";
+            } else {
+                indicator.innerHTML = '🚨 비상 모드 (Emergency)';
+                indicator.style.background = 'rgba(244, 67, 54, 0.9)'; 
+                indicator.style.borderColor = '#d32f2f';
+                document.body.style.boxShadow = "inset 0 0 100px rgba(244, 67, 54, 0.4)";
+                
+                const ragPanel = document.getElementById('rag-panel');
+                if (ragPanel) ragPanel.style.borderLeft = "4px solid #F44336";
+            }
         }
         
-        document.body.style.boxShadow = "inset 0 0 100px rgba(244, 67, 54, 0.4)";
-        alert(`[비상 발령] ${plantName}에서 이상이 감지되었습니다.\n모든 시스템이 비상 모드로 전환됩니다.`);
-        
-        const sidebar = document.getElementById('sidebar');
-        if (sidebar && sidebar.classList.contains('collapsed')) {
-            document.getElementById('sidebar-toggle').click();
+        const alertType = isTrainingEvent ? "[훈련 발령]" : "[비상 발령]";
+        if (!isTrainingEvent) {
+            alert(`${alertType} ${plantName}에서 이상이 감지되었습니다.\n모든 시스템이 비상 모드로 전환됩니다.`);
         }
         
         const ragPanel = document.getElementById('rag-panel');
@@ -158,17 +170,14 @@ const UIManager = {
             document.getElementById('rag-messages').innerHTML = ''; 
         }
 
-        // 발전소 상세 정보(방사선량, 기상 등) 강제 렌더링
         if (plantCode && plantName) {
             this.showPlantDetails({ id: plantCode, name: plantName });
         }
 
-        // --- 지도에 30km 위험 반경 렌더링 호출 ---
         if (lat && lon && typeof MapManager.drawDangerZone === 'function') {
-            MapManager.drawDangerZone(lat, lon, 30000); // 30,000m = 30km
+            MapManager.drawDangerZone(lat, lon, 30000); 
         }
 
-        // --- [신규 추가] 비상 대피소 레이어 자동 활성화 ---
         if (typeof MapManager.showShelters === 'function') {
             MapManager.showShelters();
         }
@@ -178,9 +187,7 @@ const UIManager = {
         }
     },
 
-    // 추가: 지도 위에 ETA 타이머를 생성하고 갱신하는 함수
     startEtaTimer(totalSeconds) {
-        // 기존 타이머 인터벌 초기화 방어 로직
         if (this.etaInterval) clearInterval(this.etaInterval);
 
         let timerEl = document.getElementById('map-eta-timer');
@@ -202,7 +209,6 @@ const UIManager = {
                 z-index: 1000;
                 pointer-events: none;
             `;
-            // map 컨테이너에 자식 요소로 추가
             const mapContainer = document.getElementById('map');
             if (mapContainer) {
                 mapContainer.appendChild(timerEl);
@@ -215,7 +221,7 @@ const UIManager = {
 
         const updateTimerUI = () => {
             if (currentSeconds <= 0) {
-                timerEl.innerHTML = "⚠️ 위험";
+                timerEl.innerHTML = "⚠️ 대상 도달 완료";
                 clearInterval(this.etaInterval);
                 return;
             }
@@ -233,6 +239,11 @@ const UIManager = {
         const container = document.getElementById('rag-messages');
         if (!container) return;
         
+        const emptyState = container.querySelector('.empty-state');
+        if (emptyState) {
+            emptyState.remove();
+        }
+        
         const now = new Date();
         const timeString = now.toLocaleTimeString('ko-KR', { hour12: false });
         
@@ -243,12 +254,16 @@ const UIManager = {
             </div>
         `;
         
-        container.innerHTML += msgHtml;
-        container.scrollTop = container.scrollHeight;
+        container.insertAdjacentHTML('afterbegin', msgHtml);
+        container.scrollTop = 0;
     },
 
-    // 수정: 비상 해제 시 타이머 제거 로직 추가
-    clearEmergencyMode() {
+    clearEmergencyMode(isSilent = false) {
+        this.isEmergency = false; 
+
+        const trainingPanel = document.getElementById('training-panel');
+        if (trainingPanel) trainingPanel.style.display = 'block';
+
         const indicator = document.getElementById('status-indicator');
         if (indicator) {
             indicator.innerHTML = '🟢 평시 모드 (Normal)';
@@ -257,14 +272,16 @@ const UIManager = {
         }
         
         document.body.style.boxShadow = "none";
-        alert("[상황 종료] 비상 상황이 해제되어 평시 모드로 복귀합니다.");
+        
+        if (!isSilent) {
+            alert("[상황 종료] 비상 상황이 해제되어 평시 모드로 복귀합니다.");
+        }
         
         const ragPanel = document.getElementById('rag-panel');
         if (ragPanel) {
             ragPanel.style.display = 'none';
         }
 
-        // 타이머 해제 및 DOM 제거
         if (this.etaInterval) {
             clearInterval(this.etaInterval);
             this.etaInterval = null;
@@ -272,12 +289,10 @@ const UIManager = {
         const timerEl = document.getElementById('map-eta-timer');
         if (timerEl) timerEl.remove();
 
-        // --- 위험 반경 레이어 제거 ---
         if (typeof MapManager.clearDangerZone === 'function') {
             MapManager.clearDangerZone();
         }
 
-        // --- [신규 추가] 평시 복귀 시 대피소 레이어 숨김 ---
         if (typeof MapManager.hideShelters === 'function') {
             MapManager.hideShelters();
         }

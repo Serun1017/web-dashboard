@@ -1,34 +1,34 @@
-from flask import Flask
-from apscheduler.schedulers.background import BackgroundScheduler
-from models.facility_model import poll_new_disaster_msgs # 추가 임포트
-import logging
+# app.py
 import os
+import logging
+from flask import Flask
 
-# [Model] 백그라운드 연산 모듈 임포트
-from models.weather_model import init_target_points, update_wind_cache_job
-
-# [Controller] Blueprint 임포트
+# 분리된 컨트롤러(라우터) 임포트
 from controllers.page_controller import page_bp
 from controllers.api_controller import api_bp
 
-app = Flask(__name__)
+# 분리된 스케줄러 서비스 임포트
+from services.scheduler_service import start_scheduler
+
+# 시스템 초기화 함수 임포트
+from models.weather_model import init_target_points
+
+# 로깅 기본 설정
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# 1. 스케줄러 및 데이터 초기화
-if os.environ.get('WERKZEUG_RUN_MAIN') == 'true' or not app.debug:
-    init_target_points()
-    update_wind_cache_job()
+app = Flask(__name__)
 
-    scheduler = BackgroundScheduler(timezone="Asia/Seoul")
-    scheduler.add_job(update_wind_cache_job, 'cron', minute='15')
-    
-    # 추가: 5분 주기로 새 재난 문자 확인 (DB 부하 방지용 간격)
-    scheduler.add_job(poll_new_disaster_msgs, 'interval', minutes=5)
-    scheduler.start()
-
-# 2. Controller (Blueprint) 등록
+# 컨트롤러 등록
 app.register_blueprint(page_bp)
 app.register_blueprint(api_bp)
 
+# [핵심 인과관계 제어] 
+# flask run --debug 실행 시 Werkzeug 리로더가 프로세스를 2개 띄웁니다.
+# 메인 프로세스(WERKZEUG_RUN_MAIN == 'true')에서만 단 1회 초기화 및 스케줄러가 가동되도록 통제합니다.
+if os.environ.get('WERKZEUG_RUN_MAIN') == 'true' or not app.debug:
+    logging.info("시스템 초기화를 시작합니다...")
+    init_target_points()  # 바람장 좌표 초기화 연산
+    start_scheduler()     # 스케줄러 가동
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', debug=True, port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5000)

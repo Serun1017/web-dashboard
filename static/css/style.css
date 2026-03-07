@@ -1,31 +1,58 @@
 /* static/css/style.css */
-* { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* --- 1. 기본 초기화 및 전체 레이아웃 --- */
+* { 
+    box-sizing: border-box; 
+    margin: 0; 
+    padding: 0; 
+}
+
 body {
     display: flex;
     height: 100vh;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: #121212; color: #fff;
+    background: #121212; 
+    color: #fff;
+    overflow: hidden; /* 전체 페이지의 불필요한 스크롤 방지 */
 }
 
-/* 사이드바 스타일 */
+/* --- 2. 사이드바 및 패널 공통 스타일 --- */
 #sidebar {
     width: 350px;
-    background:#1e1e1e;
+    background: #1e1e1e;
     padding: 20px;
     display: flex;
     flex-direction: column;
     gap: 20px;
-    overflow-y: auto;
     border-right: 1px solid #333;
     z-index: 2000; 
     position: relative; 
-    transition: margin-left 0.3s ease; 
+    
+    /* [인과적 조치] 내부 콘텐츠 초과 시 독립적 세로 스크롤 허용 */
+    overflow-y: auto; 
 }
+
+/* 사이드바 전체 커스텀 스크롤바 디자인 */
+#sidebar::-webkit-scrollbar {
+    width: 6px;
+}
+#sidebar::-webkit-scrollbar-track {
+    background: #1e1e1e; /* 사이드바 배경색과 일치 */
+}
+#sidebar::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 4px;
+}
+#sidebar::-webkit-scrollbar-thumb:hover {
+    background: #777;
+}
+
 .panel {
     background: #2a2a2a;
     padding: 15px;
     border-radius: 8px;
 }
+
 .panel h3 {
     margin-bottom: 12px;
     font-size: 15px;
@@ -34,50 +61,7 @@ body {
     padding-bottom: 8px;
 }
 
-#sidebar.collapsed {
-    margin-left: -350px;
-}
-
-/* 타임라인 스타일 */
-.timeline-item {
-    font-size: 13px;
-    margin-bottom: 10px;
-    padding-left: 10px;
-    border-left: 3px solid #ff9a9e;
-    color: #ccc;
-}
-.timeline-item strong {
-    color: #fff;
-    display: block;
-    margin-bottom: 2px;
-}
-
-/* 지도 컨테이너 스타일 */
-#map-container {
-    flex-grow: 1;
-    position: relative;
-}
-#map {
-    width: 100%;
-    height: 100%; 
-    z-index: 1;
-}
-
-/* 로딩 화면 스타일 */
-#loading {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    z-index: 2000;
-    background: rgba(0,0,0,0.8);
-    padding: 20px;
-    border-radius: 10px;
-    display: none;
-    text-align: center;
-}
-
-/* --- 발전소 상세 정보 카드 스타일 --- */
+/* 데이터가 없을 때 표시할 빈 상태 텍스트 */
 .empty-state {
     color: #888;
     text-align: center;
@@ -86,6 +70,45 @@ body {
     font-style: italic;
 }
 
+/* --- 3. 타임라인 (재난 문자) 스타일 --- */
+#timeline-content {
+    max-height: 250px; /* 높이 제한으로 무한 확장 방지 */
+    overflow-y: auto;
+    padding-right: 10px;
+}
+
+/* 타임라인 영역 다크 테마 커스텀 스크롤바 */
+#timeline-content::-webkit-scrollbar {
+    width: 6px; 
+}
+#timeline-content::-webkit-scrollbar-track {
+    background: #2a2a2a; 
+    border-radius: 4px;
+}
+#timeline-content::-webkit-scrollbar-thumb {
+    background: #555; 
+    border-radius: 4px;
+}
+#timeline-content::-webkit-scrollbar-thumb:hover {
+    background: #777; 
+}
+
+.timeline-item {
+    font-size: 13px;
+    margin-bottom: 10px;
+    padding-left: 10px;
+    border-left: 3px solid #ff9a9e;
+    color: #ccc;
+    line-height: 1.4;
+}
+
+.timeline-item strong {
+    color: #fff;
+    display: block;
+    margin-bottom: 4px;
+}
+
+/* --- 4. 발전소 상세 정보 카드 (그리드) 스타일 --- */
 .plant-data-grid {
     display: grid;
     grid-template-columns: 1fr 1fr; /* 2열 배치 */
@@ -112,8 +135,36 @@ body {
     font-weight: bold;
 }
 
-/* 방사선량 상태별 색상 */
+/* 방사선량 상태별 색상 매핑 */
 .val-normal { color: #4CAF50; }   /* 정상 - 초록 */
 .val-warning { color: #FFEB3B; }  /* 주의 - 노랑 */
 .val-alert { color: #FF9800; }    /* 경고 - 주황 */
 .val-emergency { color: #F44336; }/* 비상 - 빨강 */
+
+/* --- 5. 지도 컨테이너 및 로딩 화면 --- */
+#map-container {
+    flex-grow: 1;
+    position: relative;
+}
+
+#map {
+    width: 100%;
+    height: 100%; 
+    z-index: 1;
+}
+
+#loading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2000;
+    background: rgba(0,0,0,0.8);
+    color: #fff;
+    padding: 20px;
+    border-radius: 10px;
+    display: none;
+    text-align: center;
+    font-weight: bold;
+    border: 1px solid #444;
+}

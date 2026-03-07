@@ -8,10 +8,10 @@ const MapManager = {
 
     init() {
         this.map = L.map('map', {
-            center: CONFIG.mapCenter,
-            zoom: CONFIG.zoom,
-            minZoom: CONFIG.minZoom,
-            maxBounds: CONFIG.maxBounds,
+            center: window.APP_CONFIG.mapCenter,
+            zoom: window.APP_CONFIG.zoom,
+            minZoom: window.APP_CONFIG.minZoom,
+            maxBounds: window.APP_CONFIG.maxBounds,
             maxBoundsViscosity: 1.0 
         });
 
@@ -25,13 +25,12 @@ const MapManager = {
             shelters: L.layerGroup()
         };
 
-        // --- position 옵션을 추가하여 우측 상단으로 이동 ---
         L.control.layers(null, {
             "<span style='color:red; font-weight:bold;'>원자력 발전소</span>": this.layerGroups.plants,
             "<span style='color:blue; font-weight:bold;'>고객사 공장</span>": this.layerGroups.factories,
             "<span style='color:green; font-weight:bold;'>비상 대피소</span>": this.layerGroups.shelters
         }, { 
-            position: 'topright',  // 위치 지정 (topleft, topright, bottomleft, bottomright 사용 가능)
+            position: 'topright', 
             collapsed: false 
         }).addTo(this.map);
     },
@@ -39,26 +38,25 @@ const MapManager = {
     async loadFacilityData() {
         try {
             const [resPlants, resFactories, resShelters] = await Promise.all([
-                fetch(CONFIG.endpoints.plants),
-                fetch(CONFIG.endpoints.factories),
-                fetch(CONFIG.endpoints.shelters)
+                fetch(window.APP_CONFIG.endpoints.plants),
+                fetch(window.APP_CONFIG.endpoints.factories),
+                fetch(window.APP_CONFIG.endpoints.shelters)
             ]);
 
             const plants = await resPlants.json();
             const factories = await resFactories.json();
             const shelters = await resShelters.json();
 
-            // --- [신규 추가] 훈련 모드용 원전 선택 드롭다운에 DB 데이터 바인딩 ---
             const plantSelect = document.getElementById('train-plant-select');
             if (plantSelect) {
-                plantSelect.innerHTML = ''; // 기본 "로딩 중..." 텍스트 제거
+                plantSelect.innerHTML = ''; 
                 plants.forEach(p => {
                     const opt = document.createElement('option');
-                    opt.value = p.id;          // 원전 코드 (예: WS)
-                    opt.dataset.name = p.name; // 원전 이름
-                    opt.dataset.lat = p.lat;   // 위도
-                    opt.dataset.lon = p.lon;   // 경도
-                    opt.textContent = p.name;  // 사용자에게 보여질 텍스트
+                    opt.value = p.id;          
+                    opt.dataset.name = p.name; 
+                    opt.dataset.lat = p.lat;   
+                    opt.dataset.lon = p.lon;   
+                    opt.textContent = p.name;  
                     plantSelect.appendChild(opt);
                 });
             }
@@ -71,7 +69,8 @@ const MapManager = {
                 .bindPopup(`<b>[발전소] ${p.name}</b>`); 
 
                 marker.on('click', () => {
-                    UIManager.showPlantDetails(p);
+                    // id와 함께 name도 전달하여 UI에서 정상 출력되도록 조치
+                    UIManager.loadAndShowPlant(p.id, p.name);
                 });
             });
 
@@ -97,7 +96,15 @@ const MapManager = {
     async renderWindLayer() {
         UIManager.showLoading();
         try {
-            const res = await fetch(CONFIG.endpoints.wind);
+            const res = await fetch(window.APP_CONFIG.endpoints.wind);
+            
+            // [신규 인과관계 로직] 서버 캐시가 준비 안 된 503 에러 시 2초 후 재시도
+            if (res.status === 503) {
+                console.warn("바람 데이터 준비 중... 2초 후 재시도합니다.");
+                setTimeout(() => this.renderWindLayer(), 2000);
+                return; 
+            }
+
             if (!res.ok) throw new Error("바람 데이터를 가져올 수 없습니다.");
             const data = await res.json();
             
@@ -119,9 +126,10 @@ const MapManager = {
                 colorScale: ["#ffffff", "#e0f3f8", "#91bfdb", "#4575b4"] 
             });
             this.velocityLayer.addTo(this.map);
+            UIManager.hideLoading();
+
         } catch (e) {
             console.warn(e.message);
-        } finally {
             UIManager.hideLoading();
         }
     },

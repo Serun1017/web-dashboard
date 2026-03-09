@@ -63,10 +63,10 @@ class StateManager:
         try:
             with conn.cursor() as cur:
                 # 1. ETA 환산 로직 (초 -> 분)
-                eta_minutes = float(eta_seconds) / 60.0
+                # eta_minutes = float(eta_seconds) / 60.0
                 
                 # 2. time_code 규격 포맷팅 (예: 20분 -> T-20)
-                time_code = f"T-{int(eta_minutes)}"
+                time_code = f"T-{int(float(eta_seconds) / 60.0)}"
                 
                 # 3. 누락되었던 환경 변수 기본값 보강 (샘플 데이터 기준)
                 distance_km = 5.0
@@ -76,10 +76,10 @@ class StateManager:
                 # genname 컬럼에 KR 등과 같은 plant_code 삽입
                 query = """
                     INSERT INTO eta_prediction 
-                    (genname, predicted_at, eta_minutes, distance_km, wind_dir_deg, wind_speed_mps, time_code)
+                    (plant_code, predicted_at, eta_seconds, distance_km, wind_dir_deg, wind_speed_mps, time_code)
                     VALUES (%s, NOW(), %s, %s, %s, %s, %s)
                 """
-                cur.execute(query, (plant_code, eta_minutes, distance_km, wind_dir_deg, wind_speed_mps, time_code))
+                cur.execute(query, (plant_code, eta_seconds, distance_km, wind_dir_deg, wind_speed_mps, time_code))
             
             conn.commit()
             logging.info(f"훈련 데이터 적재 완료 - 코드: {plant_code}, 시간: {time_code}")

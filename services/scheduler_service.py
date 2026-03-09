@@ -2,7 +2,7 @@
 from apscheduler.schedulers.background import BackgroundScheduler
 import logging
 import atexit
-from datetime import datetime # 신규 추가
+from datetime import datetime, timedelta
 
 from models.weather_model import update_wind_cache_job
 from models.facility_model import poll_new_disaster_msgs
@@ -10,14 +10,15 @@ from models.facility_model import poll_new_disaster_msgs
 def start_scheduler():
     scheduler = BackgroundScheduler(timezone="Asia/Seoul")
     
-    # 1. [수정] 바람장 데이터 갱신 (매시 15분에 정확히 실행)
+    # 1. 바람장 데이터 갱신 (매시 15분 실행, 지각해도 무조건 실행하도록 허용시간 추가)
     scheduler.add_job(
         func=update_wind_cache_job, 
-        trigger="cron",       # interval에서 cron 방식으로 변경
-        minute=15,            # 매시간 15분에 동작하도록 지정
+        trigger="cron",
+        minute=15,
         id="wind_job", 
         replace_existing=True,
-        next_run_time=datetime.now() # 서버 구동 시 최초 1회 즉시 실행은 유지
+        misfire_grace_time=3600,  # [핵심] 1시간(3600초) 늦어도 취소하지 않고 즉시 실행
+        next_run_time=datetime.now() + timedelta(seconds=3) # 서버 구동 후 3초 뒤 최초 1회 무조건 실행
     )
     
     # 2. 신규 재난문자 폴링 (5분 간격)
@@ -26,7 +27,8 @@ def start_scheduler():
         trigger="interval", 
         minutes=5, 
         id="disaster_job", 
-        replace_existing=True
+        replace_existing=True,
+        misfire_grace_time=300
     )
     
     scheduler.start()
